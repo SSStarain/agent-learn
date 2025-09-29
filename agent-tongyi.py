@@ -5,20 +5,19 @@ from langchain_community.llms import Tongyi
 from langchain_community.agent_toolkits.load_tools import load_tools
 from langchain.agents import initialize_agent, AgentType
 
-# --- 1. 配置 API Key 和检查 ---
-# ⚠️ 请确保 DASHSCOPE_API_KEY 和 SERPER_API_KEY 已经设置为环境变量。
 
 os.environ["DASHSCOPE_API_KEY"] = "sk-5b5804c01b9f4bfa927f5a142fd2c5d0" 
-os.environ["SERPER_API_KEY"] = "YOUR_SERPER_KEY" # 仍然需要用于网络搜索工具
 
-if not os.getenv("DASHSCOPE_API_KEY") or not os.getenv("SERPER_API_KEY"):
+# --- 1. 配置 API Key 和检查 ---
+# ⚠️ 请确保 DASHSCOPE_API_KEY 已经设置为环境变量。
+if not os.getenv("DASHSCOPE_API_KEY"):
     print("----------------------------------------------------------------------")
-    print("⚠️ 错误：请先设置 DASHSCOPE_API_KEY 和 SERPER_API_KEY 环境变量。")
+    print("⚠️ 错误：请先设置 DASHSCOPE_API_KEY 环境变量。")
     print("----------------------------------------------------------------------")
     exit()
 
 # --- 2. 初始化 LLM（Agent 的大脑）---
-# 使用 Tongyi 类，指定模型为 qwen-turbo（或其他您想用的通义模型）
+# 使用 Tongyi 类，指定模型为 qwen-turbo
 DASHSCOPE_LLM_MODEL = "qwen-turbo" 
 
 print(f"正在初始化 DashScope LLM: {DASHSCOPE_LLM_MODEL}...")
@@ -29,44 +28,50 @@ llm = Tongyi(
 ) 
 
 # --- 3. 定义工具 (Tools) ---
-# 'llm-math' 用于计算，'serpapi' 用于网络搜索
-print("正在加载工具...")
-# load_tools 的使用方式保持不变，它会使用上面定义的 llm 实例
-tools = load_tools(["llm-math", "serpapi"], llm=llm)
+# 为数学计算创建带计算器工具的 agent
+print("正在加载工具：llm-math (计算器)")
+math_tools = load_tools(["llm-math"], llm=llm)
 
-# --- 4. 创建 Agent 执行器 ---
-print("正在初始化 Agent...")
-# AgentType.ZERO_SHOT_REACT_DESCRIPTION 使用 ReAct 框架
-agent = initialize_agent(
-    tools, 
+# --- 4. 创建不同类型的 Agent 执行器 ---
+print("正在初始化数学计算 Agent...")
+# 为数学计算创建带工具的 agent
+math_agent = initialize_agent(
+    math_tools, 
     llm, 
     agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, 
-    verbose=True 
+    verbose=True,
+    handle_parsing_errors=True
 )
 
-# --- 5. 运行 Agent ---
+print("知识问答将直接使用 LLM，无需创建 Agent...")
+# 对于知识问答，直接使用 LLM 而不需要 agent
+
+# --- 5. 运行不同类型的 Agent ---
 
 print("\n" + "="*50)
-print(" Agent 运行测试：场景一（纯计算）")
+print(" Agent 运行测试：任务一（纯数学计算）")
 print("="*50)
 prompt_math = "5的3.5次方是多少？结果保留两位小数。"
 print(f"**用户问题：{prompt_math}**")
 
 try:
-    response_math = agent.run(prompt_math)
+    # 使用数学计算 agent，它会使用计算器工具
+    response_math = math_agent.run(prompt_math)
     print(f"\n✅ 最终答案：{response_math}")
 except Exception as e:
     print(f"\n❌ 运行失败：{e}")
 
 
 print("\n" + "="*50)
-print(" Agent 运行测试：场景二（搜索+计算）")
+print(" Agent 运行测试：任务二（非搜索型知识问答）")
 print("="*50)
-prompt_search_and_math = "现在是哪一年？这一年如果乘以1.5是多少？"
-print(f"**用户问题：{prompt_search_and_math}**")
+# 知识问答 agent 没有工具，直接由 LLM 回答
+prompt_knowledge = "李白是什么朝代的诗人？请用两句话描述他的风格。"
+print(f"**用户问题：{prompt_knowledge}**")
 
 try:
-    response_search_and_math = agent.run(prompt_search_and_math)
-    print(f"\n✅ 最终答案：{response_search_and_math}")
+    # 直接使用 LLM 回答知识问题，不会尝试使用任何工具
+    response_knowledge = llm.invoke(prompt_knowledge)
+    print(f"\n✅ 最终答案：{response_knowledge}")
 except Exception as e:
     print(f"\n❌ 运行失败：{e}")
